@@ -49,23 +49,32 @@ def text():
     return jsonify(texts)
 
 
-@app.route("/tts-server/api/infer-glowtts")
+@app.route("/tts-server/api/infer-glowtts", methods=["GET", "POST"])
 def infer_glowtts():
-    text = request.args.get("text", "")
+    
+    if request.method == "POST":
+        # POST 요청일 경우 JSON 또는 폼 데이터에서 텍스트 받기
+        data = request.get_json()
+        if data and 'text' in data:
+            text = data['text']
+        else:
+            return "No text provided in POST request", 400
+    else:
+        # GET 요청일 경우 쿼리 파라미터에서 텍스트 받기
+        text = request.args.get("text", "")
+    
+    # 텍스트를 정상화
+    text = normalize_text(text).strip()
 
     if not text:
-        return "text shouldn't be empty", 400
-    text = normalize_text(text.strip())
+        return "Text shouldn't be empty", 400
 
-    wav = BytesIO()
     try:
-        audio = generate_audio_glow_tts(text)
-        swavfile.write(wav, rate=SAMPLING_RATE, data=audio.numpy())
-
+        # TTS 음성 생성
+        wav = synthesize(text)
+        return send_file(wav, mimetype="audio/wav", download_name="audio.wav")  # Flask 2.1에서는 attachment_filename 대신 download_name 사용
     except Exception as e:
         return f"Cannot generate audio: {str(e)}", 500
-
-    return send_file(wav, mimetype="audio/wave", attachment_filename="audio.wav")
 
 
 @app.route("/favicon.ico")
